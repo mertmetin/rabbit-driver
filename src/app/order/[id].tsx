@@ -3,8 +3,9 @@ import { ActivityIndicator, Alert, Linking, Platform, Pressable, ScrollView, Sty
 import { router, Stack, useFocusEffect, useLocalSearchParams } from "expo-router";
 import MapView, { Marker } from "react-native-maps";
 import * as Haptics from "expo-haptics";
+import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
-import { api, type DriverOrder } from "@/lib/api";
+import { api, apiUpload, type DriverOrder } from "@/lib/api";
 import { formatPhone, money, theme } from "@/lib/theme";
 import { STATUS } from "@/components/OrderCard";
 
@@ -56,6 +57,36 @@ export default function Delivery() {
     }
   };
 
+  // Photo of where the order was left. Uses the camera; the simulator has
+  // none, so it falls back to the photo library there.
+  const takePhoto = async () => {
+    const perm = await ImagePicker.requestCameraPermissionsAsync();
+    let result: ImagePicker.ImagePickerResult;
+    try {
+      if (!perm.granted) throw new Error("no camera");
+      result = await ImagePicker.launchCameraAsync({ quality: 0.6 });
+    } catch {
+      result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 0.6 });
+    }
+    if (result.canceled || !result.assets?.[0]) return false;
+
+    const asset = result.assets[0];
+    const form = new FormData();
+    form.append("photo", { uri: asset.uri, name: "doorstep.jpg", type: asset.mimeType ?? "image/jpeg" } as unknown as Blob);
+    setBusy(true);
+    try {
+      await apiUpload(`driver/orders/${id}/photo`, form);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      await load();
+      return true;
+    } catch (err) {
+      Alert.alert((err as Error).message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  };
+
   if (!order) {
     return <View style={styles.center}><ActivityIndicator /><Text style={styles.muted}>Loading order #{id}…</Text></View>;
   }
@@ -71,12 +102,19 @@ export default function Delivery() {
   if (!mine) action = { label: "Accept order", onPress: () => act("accept") };
   else if (order.status === "ready") action = { label: "Picked up", onPress: () => act("pickup") };
   else if (order.status === "out_for_delivery") {
+    const confirmDelivered = () => Alert.alert("Delivered?", `Confirm order #${order.id} was handed over${order.contactless ? " (left at the door)" : ""}.`, [
+      { text: "Not yet", style: "cancel" },
+      { text: "Delivered", onPress: () => act("deliver") },
+    ]);
     action = {
       label: "Mark delivered",
-      onPress: () => Alert.alert("Delivered?", `Confirm order #${order.id} was handed over${order.contactless ? " (left at the door)" : ""}.`, [
-        { text: "Not yet", style: "cancel" },
-        { text: "Delivered", onPress: () => act("deliver") },
-      ]),
+      // Contactless drop-offs should come with a photo of where it was left.
+      onPress: order.contactless && !order.has_photo
+        ? () => Alert.alert("Add a photo?", "The customer asked for contactless delivery. Take a photo of where you left it.", [
+            { text: "Skip", style: "cancel", onPress: confirmDelivered },
+            { text: "Take photo", onPress: async () => { if (await takePhoto()) confirmDelivered(); } },
+          ])
+        : confirmDelivered,
     };
   } else action = { label: "Waiting for the store", hint: "The store is still packing this order." };
 
@@ -127,7 +165,7 @@ export default function Delivery() {
           {(order.contactless || order.no_bell) && (
             <View style={styles.tags}>
               {order.contactless && <Text style={styles.tag}>Contactless</Text>}
-              {order.no_bell && <Text style={styles.tag}>Don't ring the bell</Text>}
+              {order.no_bell && <Text style={styles.tag}>{"Don't ring the bell"}</Text>}
             </View>
           )}
           {address.notes && <Text style={styles.note}>🏠 {address.notes}</Text>}
@@ -139,6 +177,17 @@ export default function Delivery() {
             </Pressable>
           )}
         </View>
+
+        {mine && order.status === "out_for_delivery" && (
+          <View style={styles.card}>
+            <Text style={styles.cardLabel}>Doorstep photo</Text>
+            <Text style={styles.muted}>{order.has_photo ? "Photo added. The customer can see it." : "Show the customer where you left their order."}</Text>
+            <Pressable style={styles.secondary} onPress={takePhoto} disabled={busy}>
+              <Ionicons name="camera" size={18} color={theme.primary} />
+              <Text style={styles.secondaryText}>{order.has_photo ? "Retake photo" : "Take photo"}</Text>
+            </Pressable>
+          </View>
+        )}
 
         <View style={styles.card}>
           <Text style={styles.cardLabel}>{order.item_count} items · {money(order.total)} (paid)</Text>

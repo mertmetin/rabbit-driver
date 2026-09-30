@@ -44,6 +44,20 @@ export async function api<T = unknown>(path: string, options: { method?: string;
   return data as T;
 }
 
+// Uploads a file (multipart form) to the API.
+export async function apiUpload<T = unknown>(path: string, form: FormData): Promise<T> {
+  const token = await AsyncStorage.getItem(TOKEN_KEY);
+  const res = await fetch(baseUrl() + path, {
+    method: "POST",
+    headers: token ? { authorization: `Bearer ${token}` } : {},
+    body: form,
+  });
+  const text = await res.text();
+  const data = text ? JSON.parse(text) : null;
+  if (!res.ok) throw new ApiError(res.status, data?.message ?? "Upload failed.");
+  return data as T;
+}
+
 export const saveToken = (token: string) => AsyncStorage.setItem(TOKEN_KEY, token);
 export const loadToken = () => AsyncStorage.getItem(TOKEN_KEY);
 export const clearToken = () => AsyncStorage.removeItem(TOKEN_KEY);
@@ -63,6 +77,7 @@ export type DriverOrder = {
   total: number;
   placed_at: string | null;
   picked_up_at: string | null;
+  has_photo: boolean;
 };
 
 export type Store = { id: number; name: string };

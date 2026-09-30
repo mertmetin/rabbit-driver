@@ -8,9 +8,7 @@
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,
-      "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "Rabbit Driver shares your location with the customer while you are delivering their order."
-      }
+      "bundleIdentifier": "ca.rabbit.driver"
     },
     "android": {
       "adaptiveIcon": {
@@ -19,14 +17,32 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "ca.rabbit.driver"
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
       "expo-font",
-      "expo-router"
+      "expo-router",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Rabbit Driver shares your location with the customer while you are delivering their order.",
+          "locationAlwaysAndWhenInUsePermission": "Rabbit Driver keeps sharing your location with the customer during a delivery, even when your phone is locked. Sharing stops when the order is delivered.",
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Rabbit Driver uses the camera to photograph where you left a delivery.",
+          "photosPermission": "Rabbit Driver lets you choose a doorstep photo from your library."
+        }
+      ]
     ],
     "scheme": "rabbitdriver",
     "experiments": {
