@@ -1,13 +1,16 @@
 {
   "expo": {
-    "name": "rabbit-driver",
+    "name": "Rabbit Driver",
     "slug": "rabbit-driver",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Rabbit Driver shares your location with the customer while you are delivering their order."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -20,6 +23,14 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-font",
+      "expo-router"
+    ],
+    "scheme": "rabbitdriver",
+    "experiments": {
+      "typedRoutes": true
     }
   }
 }
