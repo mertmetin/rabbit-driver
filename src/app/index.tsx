@@ -120,7 +120,7 @@ export default function Home() {
 
         {online && (
           <>
-            <Text style={styles.section}>Ready for pickup {available.length ? `(${available.length})` : ""}</Text>
+            <Text style={styles.section}>New orders {available.length ? `(${available.length})` : ""}</Text>
             {loading ? <ActivityIndicator /> : available.length === 0
               ? <Text style={styles.empty}>No orders waiting. New ones show up here automatically.</Text>
               : available.map((o) => (
