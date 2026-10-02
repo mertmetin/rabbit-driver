@@ -12,7 +12,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#00754a",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -41,6 +41,15 @@
         {
           "cameraPermission": "Rabbit Driver uses the camera to photograph where you left a delivery.",
           "photosPermission": "Rabbit Driver lets you choose a doorstep photo from your library."
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#00754a",
+          "imageWidth": 220
         }
       ]
     ],
