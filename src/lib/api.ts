@@ -73,7 +73,11 @@ export type DriverOrder = {
   contactless: boolean;
   no_bell: boolean;
   item_count: number;
-  items: { title: string; quantity: number }[];
+  items: { id: number; title: string; quantity: number; unit_price: number; found_quantity: number | null }[];
+  // The customer's choice for items that can't be found.
+  substitutions: "similar" | "skip";
+  // false: the card is only authorized; "Done shopping" charges what was found.
+  charged: boolean;
   total: number;
   placed_at: string | null;
   picked_up_at: string | null;

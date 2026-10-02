@@ -3,9 +3,9 @@ import type { DriverOrder } from "@/lib/api";
 import { money, theme } from "@/lib/theme";
 
 export const STATUS: Record<DriverOrder["status"], { label: string; color: string }> = {
-  placed: { label: "Store received it", color: theme.muted },
-  preparing: { label: "Being packed", color: theme.muted },
-  ready: { label: "Ready for pickup", color: theme.primary },
+  placed: { label: "New order", color: theme.muted },
+  preparing: { label: "Shopping", color: theme.muted },
+  ready: { label: "Shopped", color: theme.primary },
   out_for_delivery: { label: "On the way", color: theme.primaryDark },
   delivered: { label: "Delivered", color: theme.muted },
   cancelled: { label: "Cancelled", color: theme.danger },

@@ -9,7 +9,7 @@ import { api, apiUpload, type DriverOrder } from "@/lib/api";
 import { formatPhone, money, theme } from "@/lib/theme";
 import { STATUS } from "@/components/OrderCard";
 
-const STEPS: DriverOrder["status"][] = ["ready", "out_for_delivery", "delivered"];
+const STEPS: DriverOrder["status"][] = ["preparing", "ready", "out_for_delivery", "delivered"];
 
 // Opens Apple Maps / Google Maps with directions.
 function navigateTo(lat: number, lng: number, label: string) {
@@ -24,6 +24,12 @@ export default function Delivery() {
   const [order, setOrder] = useState<DriverOrder | null>(null);
   const [mine, setMine] = useState(false);
   const [busy, setBusy] = useState(false);
+  // While shopping: how many of each item were found (item id -> count).
+  // Starts at everything ordered; adjust what's missing.
+  const [found, setFound] = useState<Record<number, number>>({});
+  const foundOf = (item: DriverOrder["items"][number]) => found[item.id] ?? item.quantity;
+  const setFoundOf = (item: DriverOrder["items"][number], count: number) =>
+    setFound((f) => ({ ...f, [item.id]: Math.max(0, Math.min(item.quantity, count)) }));
 
   const load = useCallback(async () => {
     const res = await api<{ mine: DriverOrder[]; available: DriverOrder[] }>("driver/orders");
@@ -55,6 +61,46 @@ export default function Delivery() {
     } finally {
       setBusy(false);
     }
+  };
+
+  // Done shopping: the server charges exactly what was found.
+  const finishShopping = () => {
+    if (!order) return;
+    const missing = order.items.filter((i) => foundOf(i) < i.quantity);
+    const foundValue = order.items.reduce((sum, i) => sum + i.unit_price * foundOf(i), 0);
+    const nothing = order.items.every((i) => foundOf(i) === 0);
+    const summary = nothing
+      ? "Nothing was found, so the order will be cancelled and the customer won't be charged."
+      : missing.length === 0
+        ? "Everything was found."
+        : `Missing: ${missing.map((i) => `${i.quantity - foundOf(i)} × ${i.title}`).join(", ")}. The customer isn't charged for these.`;
+    Alert.alert(nothing ? "Cancel the order?" : `Charge for ${money(foundValue)} of groceries?`, `${summary}\n\nDelivery and HST are added by the server.`, [
+      { text: "Back", style: "cancel" },
+      {
+        text: nothing ? "Cancel order" : "Done shopping",
+        style: nothing ? "destructive" : "default",
+        onPress: async () => {
+          setBusy(true);
+          try {
+            const res = await api<DriverOrder>(`driver/orders/${id}/shopped`, {
+              method: "POST",
+              body: { items: order.items.map((i) => ({ id: i.id, found_quantity: foundOf(i) })) },
+            });
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            if (res.status === "cancelled") {
+              Alert.alert("Order cancelled", "The customer's card hold was released.", [{ text: "Back to orders", onPress: () => router.back() }]);
+              return;
+            }
+            Alert.alert("Charged", `The customer paid ${money(res.total)}. Time to deliver!`);
+            await load();
+          } catch (err) {
+            Alert.alert((err as Error).message);
+          } finally {
+            setBusy(false);
+          }
+        },
+      },
+    ]);
   };
 
   // Photo of where the order was left. Uses the camera; the simulator has
@@ -99,8 +145,10 @@ export default function Delivery() {
     : { lat: order.store.latitude, lng: order.store.longitude, label: order.store.name };
 
   let action: { label: string; onPress?: () => void; hint?: string };
+  const shopping = mine && (order.status === "placed" || order.status === "preparing") && !order.charged;
   if (!mine) action = { label: "Accept order", onPress: () => act("accept") };
-  else if (order.status === "ready") action = { label: "Picked up", onPress: () => act("pickup") };
+  else if (shopping) action = { label: "Done shopping", onPress: finishShopping, hint: "Set how many of each item you found." };
+  else if (order.status === "ready") action = { label: "On my way", onPress: () => act("pickup") };
   else if (order.status === "out_for_delivery") {
     const confirmDelivered = () => Alert.alert("Delivered?", `Confirm order #${order.id} was handed over${order.contactless ? " (left at the door)" : ""}.`, [
       { text: "Not yet", style: "cancel" },
@@ -116,7 +164,7 @@ export default function Delivery() {
           ])
         : confirmDelivered,
     };
-  } else action = { label: "Waiting for the store", hint: "The store is still packing this order." };
+  } else action = { label: "Waiting", hint: "This order isn't ready yet." };
 
   return (
     <>
@@ -189,12 +237,50 @@ export default function Delivery() {
           </View>
         )}
 
-        <View style={styles.card}>
-          <Text style={styles.cardLabel}>{order.item_count} items · {money(order.total)} (paid)</Text>
-          {order.items.map((item, i) => (
-            <Text key={i} style={styles.item}><Text style={{ fontWeight: "800" }}>{item.quantity} ×</Text> {item.title}</Text>
-          ))}
-        </View>
+        {shopping ? (
+          <View style={styles.card}>
+            <Text style={styles.cardLabel}>Shopping list · {order.item_count} items · up to {money(order.total)}</Text>
+            <Text style={styles.subs}>
+              {order.substitutions === "similar"
+                ? "🔄 If something's missing: replace it with something similar, at no more than its price."
+                : "⏭️ If something's missing: skip it."}
+            </Text>
+            {order.items.map((item) => {
+              const count = foundOf(item);
+              return (
+                <View key={item.id} style={styles.shopRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.item, count === 0 && styles.struck]}>{item.title}</Text>
+                    <Text style={styles.muted}>{item.quantity} ordered · {money(item.unit_price)} each</Text>
+                  </View>
+                  <Pressable style={styles.stepBtn} onPress={() => setFoundOf(item, count - 1)} hitSlop={6}>
+                    <Ionicons name="remove" size={20} color={theme.primary} />
+                  </Pressable>
+                  <Text style={[styles.count, count < item.quantity && styles.countShort]}>{count}</Text>
+                  <Pressable style={styles.stepBtn} onPress={() => setFoundOf(item, count + 1)} hitSlop={6}>
+                    <Ionicons name="add" size={20} color={theme.primary} />
+                  </Pressable>
+                  <Pressable onPress={() => setFoundOf(item, count === 0 ? item.quantity : 0)} hitSlop={6}>
+                    <Text style={styles.noneText}>{count === 0 ? "Found" : "None"}</Text>
+                  </Pressable>
+                </View>
+              );
+            })}
+          </View>
+        ) : (
+          <View style={styles.card}>
+            <Text style={styles.cardLabel}>{order.item_count} items · {money(order.total)} {order.charged ? "(charged)" : "(card held)"}</Text>
+            {order.items.map((item) => {
+              const count = item.found_quantity ?? item.quantity;
+              return (
+                <Text key={item.id} style={[styles.item, count === 0 && styles.struck]}>
+                  <Text style={{ fontWeight: "800" }}>{count} ×</Text> {item.title}
+                  {count < item.quantity ? `  (${item.quantity - count} not found)` : ""}
+                </Text>
+              );
+            })}
+          </View>
+        )}
       </ScrollView>
 
       <View style={styles.footer}>
@@ -233,4 +319,11 @@ const styles = StyleSheet.create({
   primary: { height: 56, borderRadius: 14, backgroundColor: theme.primary, alignItems: "center", justifyContent: "center" },
   primaryText: { color: theme.white, fontSize: 18, fontWeight: "800" },
   disabled: { opacity: 0.45 },
+  subs: { marginTop: 6, marginBottom: 4, fontSize: 14, color: theme.text, backgroundColor: theme.background, padding: 10, borderRadius: 10, overflow: "hidden" },
+  shopRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8, borderTopWidth: 1, borderTopColor: theme.border },
+  stepBtn: { width: 34, height: 34, borderRadius: 10, borderWidth: 1.5, borderColor: theme.primary, alignItems: "center", justifyContent: "center" },
+  count: { minWidth: 22, textAlign: "center", fontSize: 18, fontWeight: "800", color: theme.text },
+  countShort: { color: theme.danger },
+  noneText: { color: theme.danger, fontWeight: "700", fontSize: 13, width: 44, textAlign: "right" },
+  struck: { textDecorationLine: "line-through", color: theme.muted },
 });
