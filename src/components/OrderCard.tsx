@@ -21,7 +21,7 @@ export function OrderCard({ order, onPress, action }: { order: DriverOrder; onPr
       </View>
       <Text style={styles.address} numberOfLines={1}>{order.address.line1}{order.address.line2 ? `, ${order.address.line2}` : ""}</Text>
       <Text style={styles.meta}>
-        {order.customer.name || "Customer"} · {order.item_count} items · {money(order.total)}
+        {order.customer.name || "Customer"} · {order.item_count} items · {money(order.total)}{order.tip > 0 ? ` · 💚 ${money(order.tip)} tip` : ""}
         {order.contactless ? " · Contactless" : ""}
       </Text>
       {action}

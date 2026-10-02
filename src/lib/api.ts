@@ -79,6 +79,8 @@ export type DriverOrder = {
   // false: the card is only authorized; "Done shopping" charges what was found.
   charged: boolean;
   total: number;
+  // All tips on the order (checkout + after delivery); 100% the driver's.
+  tip: number;
   placed_at: string | null;
   picked_up_at: string | null;
   has_photo: boolean;

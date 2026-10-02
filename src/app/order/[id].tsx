@@ -240,6 +240,7 @@ export default function Delivery() {
         {shopping ? (
           <View style={styles.card}>
             <Text style={styles.cardLabel}>Shopping list · {order.item_count} items · up to {money(order.total)}</Text>
+            {order.tip > 0 && <Text style={styles.tipLine}>💚 {money(order.tip)} tip, all yours</Text>}
             <Text style={styles.subs}>
               {order.substitutions === "similar"
                 ? "🔄 If something's missing: replace it with something similar, at no more than its price."
@@ -270,6 +271,7 @@ export default function Delivery() {
         ) : (
           <View style={styles.card}>
             <Text style={styles.cardLabel}>{order.item_count} items · {money(order.total)} {order.charged ? "(charged)" : "(card held)"}</Text>
+            {order.tip > 0 && <Text style={styles.tipLine}>💚 {money(order.tip)} tip, all yours</Text>}
             {order.items.map((item) => {
               const count = item.found_quantity ?? item.quantity;
               return (
@@ -325,5 +327,6 @@ const styles = StyleSheet.create({
   count: { minWidth: 22, textAlign: "center", fontSize: 18, fontWeight: "800", color: theme.text },
   countShort: { color: theme.danger },
   noneText: { color: theme.danger, fontWeight: "700", fontSize: 13, width: 44, textAlign: "right" },
+  tipLine: { fontSize: 15, fontWeight: "700", color: theme.primary, marginTop: 2 },
   struck: { textDecorationLine: "line-through", color: theme.muted },
 });
