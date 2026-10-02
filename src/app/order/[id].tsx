@@ -156,10 +156,11 @@ export default function Delivery() {
     ]);
     action = {
       label: "Mark delivered",
-      // Contactless drop-offs should come with a photo of where it was left.
+      // Contactless drop-offs need a photo of where it was left (the server
+      // won't accept "delivered" without one).
       onPress: order.contactless && !order.has_photo
-        ? () => Alert.alert("Add a photo?", "The customer asked for contactless delivery. Take a photo of where you left it.", [
-            { text: "Skip", style: "cancel", onPress: confirmDelivered },
+        ? () => Alert.alert("Photo needed", "This is a contactless delivery. Take a photo of where you left the order.", [
+            { text: "Cancel", style: "cancel" },
             { text: "Take photo", onPress: async () => { if (await takePhoto()) confirmDelivered(); } },
           ])
         : confirmDelivered,
@@ -228,7 +229,7 @@ export default function Delivery() {
 
         {mine && order.status === "out_for_delivery" && (
           <View style={styles.card}>
-            <Text style={styles.cardLabel}>Doorstep photo</Text>
+            <Text style={styles.cardLabel}>Doorstep photo{order.contactless ? " (required)" : ""}</Text>
             <Text style={styles.muted}>{order.has_photo ? "Photo added. The customer can see it." : "Show the customer where you left their order."}</Text>
             <Pressable style={styles.secondary} onPress={takePhoto} disabled={busy}>
               <Ionicons name="camera" size={18} color={theme.primary} />
