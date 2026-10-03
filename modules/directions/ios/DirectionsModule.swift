@@ -21,10 +21,25 @@ public class DirectionsModule: Module {
         let count = route.polyline.pointCount
         var coords = [CLLocationCoordinate2D](repeating: kCLLocationCoordinate2DInvalid, count: count)
         route.polyline.getCoordinates(&coords, range: NSRange(location: 0, length: count))
+        // Turn-by-turn steps: the instruction, its length, and where it ends
+        // (the point to announce the next one at).
+        let steps: [[String: Any]] = route.steps.compactMap { step in
+          let n = step.polyline.pointCount
+          guard n > 0 else { return nil }
+          var points = [CLLocationCoordinate2D](repeating: kCLLocationCoordinate2DInvalid, count: n)
+          step.polyline.getCoordinates(&points, range: NSRange(location: 0, length: n))
+          let end = points[n - 1]
+          return [
+            "instructions": step.instructions,
+            "meters": step.distance,
+            "end": ["latitude": end.latitude, "longitude": end.longitude],
+          ]
+        }
         promise.resolve([
           "seconds": route.expectedTravelTime,
           "meters": route.distance,
           "coordinates": coords.map { ["latitude": $0.latitude, "longitude": $0.longitude] },
+          "steps": steps,
         ])
       }
     }

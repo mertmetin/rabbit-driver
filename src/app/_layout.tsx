@@ -47,6 +47,7 @@ function Navigator() {
       <Stack.Protected guard={!!driver}>
         <Stack.Screen name="index" options={{ title: "Rabbit Driver" }} />
         <Stack.Screen name="order/[id]" options={{ title: "Delivery" }} />
+        <Stack.Screen name="navigate/[id]" options={{ headerShown: false, gestureEnabled: false }} />
       </Stack.Protected>
     </Stack>
   );

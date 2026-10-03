@@ -1,7 +1,8 @@
 import { Platform } from "react-native";
 import { requireOptionalNativeModule } from "expo";
 
-export type Route = { seconds: number; meters: number; coordinates: { latitude: number; longitude: number }[] };
+export type Step = { instructions: string; meters: number; end: { latitude: number; longitude: number } };
+export type Route = { seconds: number; meters: number; coordinates: { latitude: number; longitude: number }[]; steps: Step[] };
 type Point = { latitude: number; longitude: number };
 
 // Apple Maps driving directions (iOS). Missing in Expo Go and on other

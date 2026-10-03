@@ -60,9 +60,7 @@ export default function Delivery() {
   // to them in one tap, so navigating never skips the status update.
   const startDelivery = async () => {
     if (!order) return;
-    const ok = await act("pickup");
-    const { address: to } = order;
-    if (ok && to.latitude !== null && to.longitude !== null) navigateTo(to.latitude, to.longitude, to.line1);
+    if (await act("pickup")) router.push(`/navigate/${order.id}?to=customer`);
   };
 
   const act = async (path: "accept" | "pickup" | "deliver") => {
@@ -239,7 +237,16 @@ export default function Delivery() {
           <Text style={styles.cardLabel}>{pickedUp ? "Deliver to" : "Shop at"}</Text>
           <Text style={styles.big}>{pickedUp ? address.line1 : order.store.name}</Text>
           {pickedUp && <Text style={styles.muted}>{[address.line2, address.city, address.postal_code].filter(Boolean).join(", ")}</Text>}
-          <Pressable style={styles.secondary} onPress={() => (order.status === "ready" && mine ? startDelivery() : navigateTo(target.lat, target.lng, target.label))}>
+          <Pressable
+            style={styles.secondary}
+            onPress={() =>
+              order.status === "ready" && mine
+                ? startDelivery()
+                : mine
+                  ? router.push(`/navigate/${order.id}?to=${pickedUp ? "customer" : "store"}`)
+                  : navigateTo(target.lat, target.lng, target.label)
+            }
+          >
             <Ionicons name="navigate" size={18} color={theme.primary} />
             <Text style={styles.secondaryText}>Navigate</Text>
           </Pressable>
