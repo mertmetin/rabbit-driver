@@ -22,9 +22,36 @@ export class ApiError extends Error {
 let onSignedOut: () => void = () => {};
 export const setSignedOutHandler = (fn: () => void) => { onSignedOut = fn; };
 
+// Messages people can act on, instead of "fetch failed" or a stack trace.
+const OFFLINE_MESSAGE = "Can't reach Rabbit. Check your internet connection and try again.";
+const SERVER_MESSAGE = "Something went wrong on our side. Please try again in a moment.";
+
+// fetch, turning "no connection" into an ApiError with a readable message.
+async function send(url: string, init: RequestInit) {
+  try {
+    return await fetch(url, init);
+  } catch {
+    throw new ApiError(0, OFFLINE_MESSAGE);
+  }
+}
+
+// The response body as JSON, or null (a proxy's HTML error page isn't).
+async function readBody(res: Response) {
+  const text = await res.text();
+  try {
+    return text ? JSON.parse(text) : null;
+  } catch {
+    return null;
+  }
+}
+
+// The server's own message (written for people) for 4xx; ours otherwise.
+const errorMessage = (status: number, data: { message?: string } | null) =>
+  status < 500 && data?.message ? data.message : SERVER_MESSAGE;
+
 export async function api<T = unknown>(path: string, options: { method?: string; body?: unknown } = {}): Promise<T> {
   const token = await AsyncStorage.getItem(TOKEN_KEY);
-  const res = await fetch(baseUrl() + path, {
+  const res = await send(baseUrl() + path, {
     method: options.method ?? (options.body ? "POST" : "GET"),
     headers: {
       "content-type": "application/json",
@@ -32,14 +59,13 @@ export async function api<T = unknown>(path: string, options: { method?: string;
     },
     body: options.body === undefined ? undefined : JSON.stringify(options.body),
   });
-  const text = await res.text();
-  const data = text ? JSON.parse(text) : null;
+  const data = await readBody(res);
   if (!res.ok) {
     if (res.status === 401 && token) {
       await AsyncStorage.removeItem(TOKEN_KEY);
       onSignedOut();
     }
-    throw new ApiError(res.status, data?.message ?? "Something went wrong.");
+    throw new ApiError(res.status, errorMessage(res.status, data));
   }
   return data as T;
 }
@@ -47,14 +73,13 @@ export async function api<T = unknown>(path: string, options: { method?: string;
 // Uploads a file (multipart form) to the API.
 export async function apiUpload<T = unknown>(path: string, form: FormData): Promise<T> {
   const token = await AsyncStorage.getItem(TOKEN_KEY);
-  const res = await fetch(baseUrl() + path, {
+  const res = await send(baseUrl() + path, {
     method: "POST",
     headers: token ? { authorization: `Bearer ${token}` } : {},
     body: form,
   });
-  const text = await res.text();
-  const data = text ? JSON.parse(text) : null;
-  if (!res.ok) throw new ApiError(res.status, data?.message ?? "Upload failed.");
+  const data = await readBody(res);
+  if (!res.ok) throw new ApiError(res.status, errorMessage(res.status, data));
   return data as T;
 }
 
