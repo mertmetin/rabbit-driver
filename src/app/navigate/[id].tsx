@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Linking, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Linking, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { router, Stack, useFocusEffect, useLocalSearchParams } from "expo-router";
 import MapView, { Marker, Polyline } from "react-native-maps";
 import { useKeepAwake } from "expo-keep-awake";
@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api, type DriverOrder } from "@/lib/api";
 import { theme } from "@/lib/theme";
 import { shortDistance, useNavigation } from "@/lib/useNavigation";
+import { markDelivered, takeDoorstepPhoto } from "@/lib/doorstep";
 
 // An arrow for the next turn, from the words of Apple's instruction.
 function turnIcon(instruction: string, arrived: boolean): keyof typeof Ionicons.glyphMap {
@@ -45,6 +46,9 @@ export default function Navigate() {
   const [order, setOrder] = useState<DriverOrder | null>(null);
   const [voice, setVoice] = useState(true);
   const [following, setFollowing] = useState(true);
+  // Finishing at the door, right here: photo (contactless), then delivered.
+  const [photoTaken, setPhotoTaken] = useState(false);
+  const [finishing, setFinishing] = useState(false);
   const map = useRef<MapView>(null);
 
   useFocusEffect(useCallback(() => {
@@ -90,6 +94,35 @@ export default function Navigate() {
       { duration: 900 },
     );
   }, [nav.position, nav.heading, following]);
+
+  const takePhoto = async () => {
+    if (!order) return;
+    setFinishing(true);
+    if (await takeDoorstepPhoto(order.id)) setPhotoTaken(true);
+    setFinishing(false);
+  };
+
+  const deliver = () => {
+    if (!order) return;
+    Alert.alert("Delivered?", `Order #${order.id}${order.contactless ? " left at the door" : " handed over"}.`, [
+      { text: "Not yet", style: "cancel" },
+      {
+        text: "Delivered",
+        onPress: async () => {
+          setFinishing(true);
+          const ok = await markDelivered(order.id);
+          setFinishing(false);
+          if (ok) Alert.alert("Delivered 🎉", "Nice work!", [{ text: "Back to orders", onPress: () => router.dismissAll() }]);
+        },
+      },
+    ]);
+  };
+
+  const exit = () =>
+    Alert.alert("Stop navigating?", "The delivery stays on the way. You can come back from the order.", [
+      { text: "Keep going", style: "cancel" },
+      { text: "Stop", style: "destructive", onPress: () => router.back() },
+    ]);
 
   const openInMaps = () => {
     if (!destination) return;
@@ -164,14 +197,20 @@ export default function Navigate() {
                 {order.notes && <Text style={styles.note}>📝 {order.notes}</Text>}
               </>
             )}
-            <Pressable
-              style={styles.primary}
-              onPress={() => (toCustomer ? router.navigate(`/order/${order.id}?finish=1`) : router.back())}
-            >
-              <Text style={styles.primaryText}>
-                {!toCustomer ? "Start shopping" : order.contactless ? "Take the photo and finish" : "Delivered: finish"}
-              </Text>
-            </Pressable>
+            {!toCustomer ? (
+              <Pressable style={styles.primary} onPress={() => router.back()}>
+                <Text style={styles.primaryText}>🛒 Start shopping</Text>
+              </Pressable>
+            ) : order.contactless && !photoTaken && !order.has_photo ? (
+              <Pressable style={[styles.primary, finishing && { opacity: 0.6 }]} onPress={takePhoto} disabled={finishing}>
+                {finishing ? <ActivityIndicator color={theme.white} /> : <Text style={styles.primaryText}>📷 Take photo</Text>}
+              </Pressable>
+            ) : (
+              <Pressable style={[styles.primary, finishing && { opacity: 0.6 }]} onPress={deliver} disabled={finishing}>
+                {finishing ? <ActivityIndicator color={theme.white} /> : <Text style={styles.primaryText}>✅ Mark delivered</Text>}
+              </Pressable>
+            )}
+            {toCustomer && (photoTaken || order.has_photo) && <Text style={styles.photoDone}>📷 Photo added. The customer can see it.</Text>}
           </View>
         ) : (
           <View style={styles.tripRow}>
@@ -184,8 +223,8 @@ export default function Navigate() {
             <Pressable style={styles.iconButton} onPress={openInMaps} accessibilityLabel="Open in Apple Maps">
               <Ionicons name="map-outline" size={22} color={theme.primary} />
             </Pressable>
-            <Pressable style={styles.end} onPress={() => router.back()}>
-              <Text style={styles.endText}>End</Text>
+            <Pressable style={styles.end} onPress={exit}>
+              <Text style={styles.endText}>Exit</Text>
             </Pressable>
           </View>
         )}
@@ -224,6 +263,7 @@ const styles = StyleSheet.create({
   tags: { flexDirection: "row", gap: 8 },
   tag: { backgroundColor: theme.accent, color: theme.text, fontWeight: "700", fontSize: 13, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, overflow: "hidden" },
   note: { fontSize: 15, color: theme.text },
+  photoDone: { fontSize: 14, color: theme.muted, textAlign: "center" },
   primary: { height: 56, borderRadius: 14, backgroundColor: theme.primary, alignItems: "center", justifyContent: "center" },
   primaryText: { color: theme.white, fontSize: 18, fontWeight: "800" },
 });

@@ -3,11 +3,11 @@ import { ActivityIndicator, Alert, Linking, Platform, Pressable, ScrollView, Sty
 import { router, Stack, useFocusEffect, useLocalSearchParams } from "expo-router";
 import MapView, { Marker, Polyline } from "react-native-maps";
 import * as Haptics from "expo-haptics";
-import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
-import { api, apiUpload, type DriverOrder } from "@/lib/api";
+import { api, type DriverOrder } from "@/lib/api";
 import { formatPhone, money, theme } from "@/lib/theme";
 import { STATUS } from "@/components/OrderCard";
+import { takeDoorstepPhoto } from "@/lib/doorstep";
 import { useRoute } from "@/lib/useRoute";
 
 const STEPS: DriverOrder["status"][] = ["preparing", "ready", "out_for_delivery", "delivered"];
@@ -21,9 +21,7 @@ function navigateTo(lat: number, lng: number, label: string) {
 }
 
 export default function Delivery() {
-  // finish=1: back from navigation at the customer's door, so go straight
-  // into finishing the delivery (photo for contactless, then "Delivered?").
-  const { id, finish } = useLocalSearchParams<{ id: string; finish?: string }>();
+  const { id } = useLocalSearchParams<{ id: string }>();
   const [order, setOrder] = useState<DriverOrder | null>(null);
   const [mine, setMine] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -146,43 +144,14 @@ export default function Delivery() {
     }
   };
 
-  // Photo of where the order was left. Uses the camera; the simulator has
-  // none, so it falls back to the photo library there.
+  // Photo of where the order was left (camera; photo library on the simulator).
   const takePhoto = async () => {
-    const perm = await ImagePicker.requestCameraPermissionsAsync();
-    let result: ImagePicker.ImagePickerResult;
-    try {
-      if (!perm.granted) throw new Error("no camera");
-      result = await ImagePicker.launchCameraAsync({ quality: 0.6 });
-    } catch {
-      result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 0.6 });
-    }
-    if (result.canceled || !result.assets?.[0]) return false;
-
-    const asset = result.assets[0];
-    const form = new FormData();
-    form.append("photo", { uri: asset.uri, name: "doorstep.jpg", type: asset.mimeType ?? "image/jpeg" } as unknown as Blob);
     setBusy(true);
-    try {
-      await apiUpload(`driver/orders/${id}/photo`, form);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      await load();
-      return true;
-    } catch (err) {
-      Alert.alert((err as Error).message);
-      return false;
-    } finally {
-      setBusy(false);
-    }
+    const ok = await takeDoorstepPhoto(id);
+    if (ok) await load();
+    setBusy(false);
+    return ok;
   };
-
-  // Arrived from navigation: start finishing once, then forget the request.
-  useEffect(() => {
-    if (finish === "1" && order?.status === "out_for_delivery" && mine) {
-      router.setParams({ finish: undefined });
-      finishDelivery();
-    }
-  }, [finish, order?.status, mine]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!order) {
     return <View style={styles.center}><ActivityIndicator /><Text style={styles.muted}>Loading order #{id}…</Text></View>;
