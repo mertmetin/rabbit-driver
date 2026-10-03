@@ -58,12 +58,15 @@ export type Guidance = {
   metersLeft: number;
   secondsLeft: number;
   heading: number | null; // which way the map should face: travel direction
+  arrivalMessage: string;
 
   arrived: boolean;
   rerouting: boolean;
 };
 
-export function useNavigation(destination: Point | null, destinationName: string, voice: boolean) {
+// `arrival` is what to say and show on arriving: what to do next there
+// (e.g. "Leave the order at the door and take a photo").
+export function useNavigation(destination: Point | null, destinationName: string, voice: boolean, arrival?: string) {
   const [route, setRoute] = useState<Route | null>(null);
   const [position, setPosition] = useState<Location.LocationObject | null>(null);
   const [step, setStep] = useState(0);
@@ -110,7 +113,7 @@ export function useNavigation(destination: Point | null, destinationName: string
     if (metersBetween(here, destination) <= ARRIVED_M) {
       arrivedRef.current = true;
       setArrived(true);
-      say("arrived", `You've arrived at ${destinationName}.`);
+      say("arrived", arrival ?? `You've arrived at ${destinationName}.`);
       return;
     }
 
@@ -187,6 +190,7 @@ export function useNavigation(destination: Point | null, destinationName: string
     position,
     heading,
     nextInstruction: arrived ? `You've arrived at ${destinationName}` : next?.instructions || "Continue on the route",
+    arrivalMessage: arrival ?? `You've arrived at ${destinationName}.`,
     metersToTurn,
     metersLeft,
     secondsLeft,

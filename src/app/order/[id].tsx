@@ -21,7 +21,9 @@ function navigateTo(lat: number, lng: number, label: string) {
 }
 
 export default function Delivery() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  // finish=1: back from navigation at the customer's door, so go straight
+  // into finishing the delivery (photo for contactless, then "Delivered?").
+  const { id, finish } = useLocalSearchParams<{ id: string; finish?: string }>();
   const [order, setOrder] = useState<DriverOrder | null>(null);
   const [mine, setMine] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -126,6 +128,24 @@ export default function Delivery() {
     ]);
   };
 
+  // Contactless drop-offs need a photo of where it was left (the server won't
+  // accept "delivered" without one); then a last "Delivered?" check.
+  const finishDelivery = () => {
+    if (!order) return;
+    const confirmDelivered = () => Alert.alert("Delivered?", `Confirm order #${order.id} was handed over${order.contactless ? " (left at the door)" : ""}.`, [
+      { text: "Not yet", style: "cancel" },
+      { text: "Delivered", onPress: () => act("deliver") },
+    ]);
+    if (order.contactless && !order.has_photo) {
+      Alert.alert("Photo needed", "This is a contactless delivery. Take a photo of where you left the order.", [
+        { text: "Cancel", style: "cancel" },
+        { text: "Take photo", onPress: async () => { if (await takePhoto()) confirmDelivered(); } },
+      ]);
+    } else {
+      confirmDelivered();
+    }
+  };
+
   // Photo of where the order was left. Uses the camera; the simulator has
   // none, so it falls back to the photo library there.
   const takePhoto = async () => {
@@ -156,6 +176,14 @@ export default function Delivery() {
     }
   };
 
+  // Arrived from navigation: start finishing once, then forget the request.
+  useEffect(() => {
+    if (finish === "1" && order?.status === "out_for_delivery" && mine) {
+      router.setParams({ finish: undefined });
+      finishDelivery();
+    }
+  }, [finish, order?.status, mine]); // eslint-disable-line react-hooks/exhaustive-deps
+
   if (!order) {
     return <View style={styles.center}><ActivityIndicator /><Text style={styles.muted}>Loading order #{id}…</Text></View>;
   }
@@ -174,21 +202,7 @@ export default function Delivery() {
   else if (shopping) action = { label: "Done shopping", onPress: finishShopping, hint: "Set how many of each item you found." };
   else if (order.status === "ready") action = { label: "Start delivery", onPress: startDelivery, hint: "Tells the customer you're on the way and opens directions." };
   else if (order.status === "out_for_delivery") {
-    const confirmDelivered = () => Alert.alert("Delivered?", `Confirm order #${order.id} was handed over${order.contactless ? " (left at the door)" : ""}.`, [
-      { text: "Not yet", style: "cancel" },
-      { text: "Delivered", onPress: () => act("deliver") },
-    ]);
-    action = {
-      label: "Mark delivered",
-      // Contactless drop-offs need a photo of where it was left (the server
-      // won't accept "delivered" without one).
-      onPress: order.contactless && !order.has_photo
-        ? () => Alert.alert("Photo needed", "This is a contactless delivery. Take a photo of where you left the order.", [
-            { text: "Cancel", style: "cancel" },
-            { text: "Take photo", onPress: async () => { if (await takePhoto()) confirmDelivered(); } },
-          ])
-        : confirmDelivered,
-    };
+    action = { label: "Mark delivered", onPress: finishDelivery };
   } else action = { label: "Waiting", hint: "This order isn't ready yet." };
 
   return (
