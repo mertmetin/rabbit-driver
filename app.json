@@ -51,6 +51,12 @@
           "backgroundColor": "#00754a",
           "imageWidth": 220
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#00754a"
+        }
       ]
     ],
     "scheme": "rabbitdriver",

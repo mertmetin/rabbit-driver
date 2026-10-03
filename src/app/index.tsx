@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { router, Stack, useFocusEffect } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { api, type DriverOrder, type Store } from "@/lib/api";
@@ -80,7 +81,7 @@ export default function Home() {
       <Stack.Screen options={{
         headerRight: () => (
           <Pressable onPress={() => Alert.alert("Sign out?", undefined, [{ text: "Cancel", style: "cancel" }, { text: "Sign out", style: "destructive", onPress: signOut }])} hitSlop={10}>
-            <Text style={{ color: theme.white, fontWeight: "600" }}>Sign out</Text>
+            <Ionicons name="log-out-outline" size={26} color={theme.white} accessibilityLabel="Sign out" />
           </Pressable>
         ),
       }} />

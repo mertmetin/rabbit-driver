@@ -1,6 +1,7 @@
 import { jwtPayload } from "./jwt";
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { clearToken, loadToken, saveToken, setSignedOutHandler } from "./api";
+import { registerForPush, unregisterForPush } from "./push";
 
 type Driver = { id: number; name: string; phone: string; role: string };
 type Session = {
@@ -21,7 +22,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setSignedOutHandler(() => setDriver(null));
     loadToken().then((token) => {
       const payload = token ? jwtPayload(token) : null;
-      if (payload && (payload.role === "driver" || payload.role === "admin")) setDriver(payload as Driver);
+      if (payload && (payload.role === "driver" || payload.role === "admin")) {
+        setDriver(payload as Driver);
+        registerForPush();
+      }
       setLoading(false);
     });
   }, []);
@@ -33,10 +37,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     }
     await saveToken(token);
     setDriver(payload as Driver);
+    registerForPush(); // drivers want new-order alerts: ask right away
     return null;
   };
 
   const signOut = async () => {
+    await unregisterForPush();
     await clearToken();
     setDriver(null);
   };

@@ -45,6 +45,15 @@ export default function Delivery() {
     return () => clearInterval(timer);
   }, [load]));
 
+  // "Start delivery": tells the customer it's on the way and opens directions
+  // to them in one tap, so navigating never skips the status update.
+  const startDelivery = async () => {
+    if (!order) return;
+    const ok = await act("pickup");
+    const { address: to } = order;
+    if (ok && to.latitude !== null && to.longitude !== null) navigateTo(to.latitude, to.longitude, to.line1);
+  };
+
   const act = async (path: "accept" | "pickup" | "deliver") => {
     setBusy(true);
     try {
@@ -55,9 +64,11 @@ export default function Delivery() {
         return;
       }
       await load();
+      return true;
     } catch (err) {
       Alert.alert((err as Error).message);
       load().catch(() => {});
+      return false;
     } finally {
       setBusy(false);
     }
@@ -91,8 +102,11 @@ export default function Delivery() {
               Alert.alert("Order cancelled", "The customer's card hold was released.", [{ text: "Back to orders", onPress: () => router.back() }]);
               return;
             }
-            Alert.alert("Charged", `The customer paid ${money(res.total)}. Time to deliver!`);
             await load();
+            Alert.alert("Charged", `The customer paid ${money(res.total)}. Start the delivery now?`, [
+              { text: "Later", style: "cancel" },
+              { text: "Start delivery", onPress: startDelivery },
+            ]);
           } catch (err) {
             Alert.alert((err as Error).message);
           } finally {
@@ -139,7 +153,8 @@ export default function Delivery() {
 
   const { address } = order;
   const hasCustomerPin = address.latitude !== null && address.longitude !== null;
-  const pickedUp = order.status === "out_for_delivery";
+  // Shopped or on the way: next stop is the customer. Before that, the store.
+  const pickedUp = order.status === "ready" || order.status === "out_for_delivery";
   const target = pickedUp && hasCustomerPin
     ? { lat: address.latitude!, lng: address.longitude!, label: address.line1 }
     : { lat: order.store.latitude, lng: order.store.longitude, label: order.store.name };
@@ -148,7 +163,7 @@ export default function Delivery() {
   const shopping = mine && (order.status === "placed" || order.status === "preparing") && !order.charged;
   if (!mine) action = { label: "Accept order", onPress: () => act("accept") };
   else if (shopping) action = { label: "Done shopping", onPress: finishShopping, hint: "Set how many of each item you found." };
-  else if (order.status === "ready") action = { label: "On my way", onPress: () => act("pickup") };
+  else if (order.status === "ready") action = { label: "Start delivery", onPress: startDelivery, hint: "Tells the customer you're on the way and opens directions." };
   else if (order.status === "out_for_delivery") {
     const confirmDelivered = () => Alert.alert("Delivered?", `Confirm order #${order.id} was handed over${order.contactless ? " (left at the door)" : ""}.`, [
       { text: "Not yet", style: "cancel" },
@@ -198,10 +213,10 @@ export default function Delivery() {
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.cardLabel}>{pickedUp ? "Deliver to" : "Pick up from"}</Text>
+          <Text style={styles.cardLabel}>{pickedUp ? "Deliver to" : "Shop at"}</Text>
           <Text style={styles.big}>{pickedUp ? address.line1 : order.store.name}</Text>
           {pickedUp && <Text style={styles.muted}>{[address.line2, address.city, address.postal_code].filter(Boolean).join(", ")}</Text>}
-          <Pressable style={styles.secondary} onPress={() => navigateTo(target.lat, target.lng, target.label)}>
+          <Pressable style={styles.secondary} onPress={() => (order.status === "ready" && mine ? startDelivery() : navigateTo(target.lat, target.lng, target.label))}>
             <Ionicons name="navigate" size={18} color={theme.primary} />
             <Text style={styles.secondaryText}>Navigate</Text>
           </Pressable>
