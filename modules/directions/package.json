@@ -1,0 +1,7 @@
+{
+  "name": "directions",
+  "version": "1.0.0",
+  "description": "Driving route, time and distance from Apple Maps (iOS).",
+  "main": "src/index.ts",
+  "private": true
+}

@@ -1,13 +1,14 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { router, Stack, useFocusEffect, useLocalSearchParams } from "expo-router";
-import MapView, { Marker } from "react-native-maps";
+import MapView, { Marker, Polyline } from "react-native-maps";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
 import { api, apiUpload, type DriverOrder } from "@/lib/api";
 import { formatPhone, money, theme } from "@/lib/theme";
 import { STATUS } from "@/components/OrderCard";
+import { useRoute } from "@/lib/useRoute";
 
 const STEPS: DriverOrder["status"][] = ["preparing", "ready", "out_for_delivery", "delivered"];
 
@@ -27,6 +28,16 @@ export default function Delivery() {
   // While shopping: how many of each item were found (item id -> count).
   // Starts at everything ordered; adjust what's missing.
   const [found, setFound] = useState<Record<number, number>>({});
+  // The drive on the map (green line, time and distance); the map zooms to it.
+  const route = useRoute(order, mine);
+  const map = useRef<MapView>(null);
+  useEffect(() => {
+    if (route?.coordinates.length) {
+      map.current?.fitToCoordinates(route.coordinates, { edgePadding: { top: 50, right: 40, bottom: 60, left: 40 }, animated: true });
+    }
+    // Only when the destination changes or a route first appears, not on
+    // every refresh, so a driver who panned the map isn't yanked back.
+  }, [route?.to, route?.coordinates.length]); // eslint-disable-line react-hooks/exhaustive-deps
   const foundOf = (item: DriverOrder["items"][number]) => found[item.id] ?? item.quantity;
   const setFoundOf = (item: DriverOrder["items"][number], count: number) =>
     setFound((f) => ({ ...f, [item.id]: Math.max(0, Math.min(item.quantity, count)) }));
@@ -186,7 +197,9 @@ export default function Delivery() {
     <>
       <Stack.Screen options={{ title: `Order #${order.id}` }} />
       <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+        <View>
         <MapView
+          ref={map}
           style={styles.map}
           initialRegion={{
             latitude: (order.store.latitude + (address.latitude ?? order.store.latitude)) / 2,
@@ -198,7 +211,17 @@ export default function Delivery() {
         >
           <Marker coordinate={{ latitude: order.store.latitude, longitude: order.store.longitude }} title={order.store.name} pinColor={theme.primary} />
           {hasCustomerPin && <Marker coordinate={{ latitude: address.latitude!, longitude: address.longitude! }} title={order.customer.name || "Customer"} />}
+          {route && <Polyline coordinates={route.coordinates} strokeColor={theme.primary} strokeWidth={5} />}
         </MapView>
+        {route && (
+          <View style={styles.routeChip}>
+            <Ionicons name="car" size={16} color={theme.white} />
+            <Text style={styles.routeText}>
+              {Math.max(1, Math.round(route.seconds / 60))} min · {(route.meters / 1000).toFixed(1)} km to {route.to === "store" ? "the store" : "the customer"}
+            </Text>
+          </View>
+        )}
+        </View>
 
         <View style={styles.steps}>
           {STEPS.map((step, i) => {
@@ -315,7 +338,12 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: theme.background },
   content: { paddingBottom: 24, gap: 12 },
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 8 },
-  map: { height: 220 },
+  map: { height: 240 },
+  routeChip: {
+    position: "absolute", left: 12, bottom: 12, flexDirection: "row", alignItems: "center", gap: 6,
+    backgroundColor: theme.primary, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999,
+  },
+  routeText: { color: theme.white, fontWeight: "700", fontSize: 14 },
   steps: { flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 16 },
   step: { flex: 1, alignItems: "center", gap: 6 },
   dot: { width: 14, height: 14, borderRadius: 7, backgroundColor: theme.border },
