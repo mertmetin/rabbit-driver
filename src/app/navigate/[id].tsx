@@ -74,7 +74,7 @@ export default function Navigate() {
       ? "You've arrived at the store. Time to shop!"
       : order.contactless
         ? "You've arrived. Leave the order at the door and take a photo."
-        : `You've arrived. Hand the order to ${firstName}.`;
+        : `You've arrived. Hand the order to ${firstName}, then take a photo of the bag.`;
   const nav = useNavigation(destination, placeName, voice, arrival);
 
   // Keep the camera behind the driver, turned the way they're heading.
@@ -201,10 +201,13 @@ export default function Navigate() {
               <Pressable style={styles.primary} onPress={() => router.back()}>
                 <Text style={styles.primaryText}>🛒 Start shopping</Text>
               </Pressable>
-            ) : order.contactless && !photoTaken && !order.has_photo ? (
-              <Pressable style={[styles.primary, finishing && { opacity: 0.6 }]} onPress={takePhoto} disabled={finishing}>
-                {finishing ? <ActivityIndicator color={theme.white} /> : <Text style={styles.primaryText}>📷 Take photo</Text>}
-              </Pressable>
+            ) : !photoTaken && !order.has_photo ? (
+              <>
+                <Pressable style={[styles.primary, finishing && { opacity: 0.6 }]} onPress={takePhoto} disabled={finishing}>
+                  {finishing ? <ActivityIndicator color={theme.white} /> : <Text style={styles.primaryText}>📷 Take photo</Text>}
+                </Pressable>
+                <Text style={styles.photoDone}>{order.contactless ? "The bag where you left it." : "The bag, not the customer."}</Text>
+              </>
             ) : (
               <Pressable style={[styles.primary, finishing && { opacity: 0.6 }]} onPress={deliver} disabled={finishing}>
                 {finishing ? <ActivityIndicator color={theme.white} /> : <Text style={styles.primaryText}>✅ Mark delivered</Text>}

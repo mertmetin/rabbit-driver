@@ -126,16 +126,16 @@ export default function Delivery() {
     ]);
   };
 
-  // Contactless drop-offs need a photo of where it was left (the server won't
-  // accept "delivered" without one); then a last "Delivered?" check.
+  // Every delivery needs a photo (the server won't accept "delivered"
+  // without one); then a last "Delivered?" check.
   const finishDelivery = () => {
     if (!order) return;
     const confirmDelivered = () => Alert.alert("Delivered?", `Confirm order #${order.id} was handed over${order.contactless ? " (left at the door)" : ""}.`, [
       { text: "Not yet", style: "cancel" },
       { text: "Delivered", onPress: () => act("deliver") },
     ]);
-    if (order.contactless && !order.has_photo) {
-      Alert.alert("Photo needed", "This is a contactless delivery. Take a photo of where you left the order.", [
+    if (!order.has_photo) {
+      Alert.alert("Photo needed", order.contactless ? "Take a photo of where you left the order." : "Take a photo of the bag you handed over (not the customer).", [
         { text: "Cancel", style: "cancel" },
         { text: "Take photo", onPress: async () => { if (await takePhoto()) confirmDelivered(); } },
       ]);
@@ -257,7 +257,7 @@ export default function Delivery() {
 
         {mine && order.status === "out_for_delivery" && (
           <View style={styles.card}>
-            <Text style={styles.cardLabel}>Doorstep photo{order.contactless ? " (required)" : ""}</Text>
+            <Text style={styles.cardLabel}>Delivery photo (required)</Text>
             <Text style={styles.muted}>{order.has_photo ? "Photo added. The customer can see it." : "Show the customer where you left their order."}</Text>
             <Pressable style={styles.secondary} onPress={takePhoto} disabled={busy}>
               <Ionicons name="camera" size={18} color={theme.primary} />
